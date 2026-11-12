@@ -1,4 +1,5 @@
 const path = require('path');
+const crypto = require('crypto');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const mongoose = require('mongoose');
@@ -22,7 +23,7 @@ app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 function parseLecturerPayload(body, partial = false) {
   const data = {};
-  const fields = ['IDGV', 'Fullname', 'Image'];
+  const fields = ['Fullname', 'Image'];
 
   for (const field of fields) {
     if (partial && body[field] === undefined) continue;
@@ -154,7 +155,10 @@ app.post('/api/lecturers', async (req, res) => {
   }
 
   try {
-    const lecturer = await Lecturer.create(data);
+    const lecturer = await Lecturer.create({
+      ...data,
+      IDGV: `GV-${crypto.randomBytes(8).toString('hex').toUpperCase()}`
+    });
     res.status(201).json({
       success: true,
       message: 'Thêm giảng viên thành công',
