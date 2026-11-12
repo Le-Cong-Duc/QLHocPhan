@@ -146,7 +146,9 @@ export default function App() {
     setModalVisible(true);
   };
 
-  const handleSaveLecturer = async (payload: Omit<Lecturer, '_id'>) => {
+  const handleSaveLecturer = async (
+    payload: Omit<Lecturer, '_id' | 'IDGV'>
+  ) => {
     setServerError('');
     setFormSaving(true);
 

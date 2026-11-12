@@ -21,7 +21,7 @@ interface LecturerFormModalProps {
   mode: 'add' | 'edit';
   initialData?: Lecturer | null;
   onClose: () => void;
-  onSave: (payload: Omit<Lecturer, '_id'>) => Promise<void>;
+  onSave: (payload: Omit<Lecturer, '_id' | 'IDGV'>) => Promise<void>;
   saving: boolean;
   serverError?: string;
 }
@@ -35,9 +35,8 @@ export default function LecturerFormModal({
   saving,
   serverError,
 }: LecturerFormModalProps) {
-  const [idgv, setIdgv] = useState(
+  const idgv =
     mode === 'edit' && initialData ? initialData.IDGV || '' : ''
-  );
   const [fullname, setFullname] = useState(
     mode === 'edit' && initialData ? initialData.Fullname || '' : ''
   );
@@ -74,10 +73,6 @@ export default function LecturerFormModal({
   };
 
   const handleSave = () => {
-    if (!idgv.trim()) {
-      setLocalError('Vui lòng nhập mã giảng viên');
-      return;
-    }
     if (!fullname.trim()) {
       setLocalError('Vui lòng nhập họ và tên giảng viên');
       return;
@@ -97,7 +92,6 @@ export default function LecturerFormModal({
 
     setLocalError('');
     onSave({
-      IDGV: idgv.trim(),
       Fullname: fullname.trim(),
       SumClass: Number(sumClass),
       Image: image.trim(),
@@ -148,20 +142,6 @@ export default function LecturerFormModal({
                   <Text style={styles.errorText}>{errorMessage}</Text>
                 </View>
               ) : null}
-
-              {/* IDGV */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>
-                  Mã giảng viên (IDGV) <Text style={{ color: '#DC2626' }}>*</Text>
-                </Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="Nhập mã giảng viên..."
-                  value={idgv}
-                  onChangeText={setIdgv}
-                  autoCapitalize="characters"
-                />
-              </View>
 
               {/* Fullname */}
               <View style={styles.formGroup}>
@@ -373,6 +353,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: '#F9FAFB',
     color: '#1F2937',
+  },
+  readOnlyInput: {
+    justifyContent: 'center',
+  },
+  readOnlyText: {
+    color: '#6B7280',
+    fontSize: 14,
   },
   imagePreviewBox: {
     marginTop: 10,
