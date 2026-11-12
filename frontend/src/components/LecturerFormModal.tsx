@@ -35,8 +35,6 @@ export default function LecturerFormModal({
   saving,
   serverError,
 }: LecturerFormModalProps) {
-  const idgv =
-    mode === 'edit' && initialData ? initialData.IDGV || '' : ''
   const [fullname, setFullname] = useState(
     mode === 'edit' && initialData ? initialData.Fullname || '' : ''
   );

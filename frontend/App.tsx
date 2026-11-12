@@ -28,6 +28,7 @@ const nativeApiHost = Device.isDevice ? metroHost || '192.168.10.156' : '10.0.2.
 const DEFAULT_API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   `${Platform.OS === 'web' ? 'http://localhost' : `http://${nativeApiHost}`}:5000/api`;
+const PAGE_SIZE = 5;
 
 export default function App() {
   const { width } = useWindowDimensions();
@@ -44,6 +45,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<'default' | 'class_asc' | 'class_desc'>('default');
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -74,6 +76,7 @@ export default function App() {
       const data = await res.json();
       if (data.success && data.data) {
         setLecturers(data.data);
+        setCurrentPage(1);
       } else {
         showToast(data.message || 'Không thể tải danh sách giảng viên', 'error');
       }
@@ -224,6 +227,12 @@ export default function App() {
       if (sortBy === 'class_desc') return b.SumClass - a.SumClass;
       return 0;
     });
+  const totalPages = Math.ceil(sortedLecturers.length / PAGE_SIZE);
+  const displayedPage = Math.min(currentPage, totalPages);
+  const paginatedLecturers = sortedLecturers.slice(
+    (displayedPage - 1) * PAGE_SIZE,
+    displayedPage * PAGE_SIZE
+  );
 
   if (!isLoggedIn) {
     return (
@@ -385,6 +394,7 @@ export default function App() {
             onSubmitEditing={() => fetchLecturers(search)}
             onChangeText={(text) => {
               setSearch(text);
+              setCurrentPage(1);
               fetchLecturers(text);
             }}
           />
@@ -392,6 +402,7 @@ export default function App() {
             <TouchableOpacity
               onPress={() => {
                 setSearch('');
+                setCurrentPage(1);
                 fetchLecturers('');
               }}
             >
@@ -416,7 +427,10 @@ export default function App() {
         <View style={styles.filterChipGroup}>
           <TouchableOpacity
             style={[styles.chip, sortBy === 'default' && styles.chipActive]}
-            onPress={() => setSortBy('default')}
+            onPress={() => {
+              setCurrentPage(1);
+              setSortBy('default');
+            }}
           >
             <Text style={[styles.chipText, sortBy === 'default' && styles.chipTextActive]}>
               Tất cả ({lecturers.length})
@@ -426,6 +440,7 @@ export default function App() {
           <TouchableOpacity
             style={[styles.chip, sortBy !== 'default' && styles.chipActive]}
             onPress={() => {
+              setCurrentPage(1);
               if (sortBy === 'default') setSortBy('class_asc');
               else if (sortBy === 'class_asc') setSortBy('class_desc');
               else setSortBy('default');
@@ -459,14 +474,15 @@ export default function App() {
           </Text>
         </View>
       ) : (
-        <ScrollView
-          horizontal
-          style={styles.tableScroll}
-          contentContainerStyle={styles.tableScrollContent}
-          showsHorizontalScrollIndicator
-        >
-          <View style={[styles.table, { width: tableWidth }]}>
-            <View style={[styles.tableRow, styles.tableHeader]}>
+        <View style={styles.listContainer}>
+          <ScrollView
+            horizontal
+            style={styles.tableScroll}
+            contentContainerStyle={styles.tableScrollContent}
+            showsHorizontalScrollIndicator
+          >
+            <View style={[styles.table, { width: tableWidth }]}>
+              <View style={[styles.tableRow, styles.tableHeader]}>
               <Text style={[
                 styles.tableHeaderText,
                 styles.idColumn,
@@ -507,23 +523,23 @@ export default function App() {
               ]}>
                 Thao tác
               </Text>
-            </View>
+              </View>
 
-            <FlatList
-              data={sortedLecturers}
-              keyExtractor={(item) => item.IDGV}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={() => {
-                    setRefreshing(true);
-                    fetchLecturers(search);
-                  }}
-                  colors={['#1E40AF']}
-                />
-              }
-              renderItem={({ item, index }) => (
-                <View style={[styles.tableRow, index % 2 === 1 && styles.alternateTableRow]}>
+              <FlatList
+                data={paginatedLecturers}
+                keyExtractor={(item) => item.IDGV}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={() => {
+                      setRefreshing(true);
+                      fetchLecturers(search);
+                    }}
+                    colors={['#1E40AF']}
+                  />
+                }
+                renderItem={({ item, index }) => (
+                  <View style={[styles.tableRow, index % 2 === 1 && styles.alternateTableRow]}>
                   <Text
                     style={[
                       styles.tableCell,
@@ -599,11 +615,41 @@ export default function App() {
                       )}
                     </TouchableOpacity>
                   </View>
-                </View>
-              )}
-            />
+                  </View>
+                )}
+              />
+            </View>
+          </ScrollView>
+
+          <View style={styles.paginationRow}>
+            <Text style={styles.paginationText}>
+              Trang {displayedPage} / {totalPages} · {sortedLecturers.length} giảng viên
+            </Text>
+            <View style={styles.paginationControls}>
+              <TouchableOpacity
+                style={[styles.paginationButton, displayedPage <= 1 && styles.paginationButtonDisabled]}
+                onPress={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={displayedPage <= 1}
+                accessibilityRole="button"
+                accessibilityLabel="Trang trước"
+              >
+                <Ionicons name="chevron-back" size={18} color={displayedPage <= 1 ? '#9CA3AF' : '#1E40AF'} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.paginationButton,
+                  displayedPage >= totalPages && styles.paginationButtonDisabled,
+                ]}
+                onPress={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={displayedPage >= totalPages}
+                accessibilityRole="button"
+                accessibilityLabel="Trang sau"
+              >
+                <Ionicons name="chevron-forward" size={18} color={displayedPage >= totalPages ? '#9CA3AF' : '#1E40AF'} />
+              </TouchableOpacity>
+            </View>
           </View>
-        </ScrollView>
+        </View>
       )}
       {modalVisible ? (
         <LecturerFormModal
@@ -933,6 +979,9 @@ const styles = StyleSheet.create({
   },
 
   // Bảng giảng viên
+  listContainer: {
+    flex: 1,
+  },
   tableScroll: {
     flex: 1,
     marginHorizontal: 10,
@@ -940,6 +989,37 @@ const styles = StyleSheet.create({
   },
   tableScrollContent: {
     flexGrow: 1,
+  },
+  paginationRow: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  paginationText: {
+    color: '#4B5563',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  paginationControls: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  paginationButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  paginationButtonDisabled: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
   },
   table: {
     backgroundColor: '#FFFFFF',
