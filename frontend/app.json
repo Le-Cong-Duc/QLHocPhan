@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Quản lý Sản phẩm",
-    "slug": "quan-ly-san-pham",
+    "name": "Quản lý học phần",
+    "slug": "quan-ly-hoc-phan",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

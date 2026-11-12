@@ -1,103 +1,51 @@
-# BÀI THI GIỮA KÌ: PHÁT TRIỂN ỨNG DỤNG ĐA NỀN TẢNG
-## Ứng dụng Quản trị Sản phẩm Admin (React Native + MongoDB)
+# Quản lý học phần
 
----
+Ứng dụng React Native (Expo) chạy trên Web và Android/iOS, dùng Node.js/Express làm API và MongoDB làm cơ sở dữ liệu. Chức năng gồm đăng nhập Admin, thêm/hiển thị/sửa/xóa giảng viên, tìm kiếm theo mã hoặc họ tên, sắp xếp theo tổng số lớp và chọn ảnh từ thiết bị.
 
-### 1. Giới thiệu tổng quan
-Dự án được xây dựng theo mô hình **Client - Server (Frontend & Backend tách biệt)**:
-- **Backend**: Xây dựng bằng **Node.js + Express**, kết nối trực tiếp đến cơ sở dữ liệu **MongoDB** (`product_db`, collection: `product`).
-- **Frontend**: Xây dựng bằng **React Native (Expo SDK 58)**, hỗ trợ chạy mượt mà đa nền tảng trên cả **Web** và **Mobile** (Android/iOS thông qua Expo Go).
+## Đối chiếu đề thi
 
----
+- Database MongoDB: `QLHocPhan`
+- Collection: `GiangVien`
+- Các trường nghiệp vụ: `IDGV` (mã giảng viên), `Fullname` (họ tên), `Image` (URL hoặc base64), `SumClass` (tổng số lớp).
+- MongoDB tự cấp `_id` để định danh document; schema không thêm trường nghiệp vụ nào khác và tắt `__v`.
+- Mã nguồn không chứa file export `product_db.product.json`. Export JSON là đầu ra nộp bài, tạo riêng sau khi nhập dữ liệu.
 
-### 2. Cấu trúc thư mục dự án
-```
-my-app/
-├── backend/                     # Phân hệ Backend API (Node.js & MongoDB)
-│   ├── database/
-│   │   └── product_db.product.json # File CSDL mẫu để nộp bài
-│   ├── models/
-│   │   └── Product.js           # Schema Mongoose (name, price, soluong, image)
-│   ├── server.js                # Server Express & các API CRUD, Auth
-│   ├── package.json
-│   └── .env                     # Cấu hình PORT & MONGO_URI
-├── frontend/                    # Phân hệ Frontend (React Native Expo)
-│   ├── assets/                  # Hình ảnh, icon của ứng dụng
-│   ├── src/
-│   │   ├── app/                 # Màn hình theo Expo Router
-│   │   │   ├── _layout.tsx      # Khung điều hướng Stack & Header
-│   │   │   ├── index.tsx        # Danh sách sản phẩm, Tìm kiếm, Xóa, Lọc
-│   │   │   ├── login.tsx        # Đăng nhập Admin
-│   │   │   ├── add.tsx          # Thêm sản phẩm (hỗ trợ chọn ảnh từ máy)
-│   │   │   └── edit/[id].tsx    # Sửa sản phẩm
-│   │   ├── context/
-│   │   │   └── AuthContext.tsx  # Quản lý trạng thái đăng nhập
-│   │   ├── services/
-│   │   │   └── api.ts           # Gọi API đến Backend
-│   │   └── types/
-│   │       └── product.ts       # Định nghĩa kiểu dữ liệu TypeScript
-│   ├── app.json
-│   ├── package.json
-│   └── tsconfig.json
-├── database/
-│   └── product_db.product.json  # File CSDL JSON độc lập nộp cho giảng viên
-├── package.json                 # Script tiện ích ở thư mục gốc
-└── README.md                    # Tài liệu hướng dẫn & Báo cáo bài thi
+## Cấu trúc chính
+
+```text
+backend/
+  models/Lecturer.js
+  server.js
+frontend/
+  App.tsx
+  src/app/
+  src/components/LecturerFormModal.tsx
+  src/types/lecturer.ts
 ```
 
----
+## Chạy dự án
 
-### 3. Cơ sở dữ liệu MongoDB (Đáp ứng yêu cầu nghiêm ngặt của đề bài)
-- **Tên Database**: `product_db`
-- **Tên Collection**: `product`
-- **Các trường dữ liệu (Chỉ gồm 4 trường, không tự ý thêm trường)**:
-  1. `name`: Tên sản phẩm (String)
-  2. `price`: Giá sản phẩm (Number)
-  3. `soluong`: Số lượng sản phẩm trong kho (Number)
-  4. `image`: Đường dẫn hình ảnh hoặc ảnh base64 (String)
-- **File CSDL nộp bài**: Đã có sẵn tại `database/product_db.product.json` và `backend/database/product_db.product.json`.
+1. Khởi động MongoDB local trên cổng `27017`.
+2. Chạy backend:
 
----
+   ```powershell
+   cd backend
+   npm install
+   npm start
+   ```
 
-### 4. Barem điểm & Các chức năng đã hoàn thành
-| Mục đề bài | Yêu cầu | Điểm | Trạng thái |
-| :--- | :--- | :---: | :---: |
-| **Mục 1** | Thêm, hiển thị `name`, `price`, `soluong`, `image` trên nền tảng **Web** | **8.0** |  Hoàn thành xuất sắc |
-| **Mục 2** | Đăng nhập Admin, Sửa, Xóa, Tìm kiếm, Sắp xếp giá, Lọc tồn kho | **1.5** |  Hoàn thành xuất sắc |
-| **Mục 3** | Nhập hình ảnh từ thiết bị (Image Picker) & hiển thị trên nền tảng **Di động** | **0.5** |  Hoàn thành xuất sắc |
-| **Nộp bài** | File CSDL JSON (`product_db.product.json`), Báo cáo, Code sạch sẽ | - |  Đầy đủ |
+   Mặc định dùng `mongodb://127.0.0.1:27017/QLHocPhan`. Cấu hình MongoDB và tài khoản Admin trong `backend/.env` (tham khảo `.env.example`). Không commit file `.env` lên Git.
 
----
+3. Chạy frontend trong terminal khác:
 
-### 5. Hướng dẫn cài đặt và khởi chạy
+   ```powershell
+   cd frontend
+   npm install
+   npx expo start
+   ```
 
-#### Bước 1: Khởi động MongoDB
-Đảm bảo MongoDB Server hoặc MongoDB Compass đang mở tại `localhost:27017` (như trong ảnh bài nộp).
+   Chạy Web bằng `npm run web`; Android emulator bằng phím `a` trong Expo CLI. URL API được chọn theo nền tảng: Web dùng `localhost`, Android emulator dùng `10.0.2.2`, thiết bị thật dùng host của Expo dev server trên LAN. Có thể đặt `EXPO_PUBLIC_API_URL` nếu cần chỉ định URL khác. Thiết bị thật và máy chạy backend phải truy cập được nhau qua mạng, cổng `5000`.
 
-#### Bước 2: Chạy Backend
-Mở Terminal thứ nhất:
-```bash
-cd backend
-npm install   # (nếu chưa cài)
-npm start
-```
-> Server sẽ khởi chạy tại: `http://localhost:5000` và tự động nạp dữ liệu mẫu vào `product_db.product` nếu CSDL đang trống.
+## Export JSON để nộp
 
-#### Bước 3: Chạy Frontend (Web & Mobile)
-Mở Terminal thứ hai:
-```bash
-cd frontend
-npm run web
-```
-- **Trên Web**: Trình duyệt sẽ tự động mở tại `http://localhost:8081`. Bạn có thể thực hiện xem, tìm kiếm, thêm, sửa, xóa sản phẩm trực tiếp trên Web.
-- **Trên Điện thoại (Di động)**:
-  - Chạy lệnh: `npx expo start`
-  - Mở ứng dụng **Expo Go** trên điện thoại (Android hoặc iOS) và quét mã QR trên màn hình terminal.
-  - Bạn có thể nhấn vào nút **"Chọn ảnh từ máy"** để tải ảnh từ bộ sưu tập điện thoại hoặc chụp ảnh mới.
-
----
-
-### 6. Tài khoản đăng nhập Admin mặc định
-- **Tài khoản**: `admin`
-- **Mật khẩu**: `admin` (hoặc `123456`)
-- Trên giao diện có nút **"Điền tài khoản mẫu (admin / admin)"** giúp thao tác nhanh khi chấm bài hoặc quay video demo.
+Không thêm file export vào mã nguồn. Sau khi nhập dữ liệu, dùng MongoDB Compass để export collection `QLHocPhan.GiangVien` thành JSON vào thư mục nộp bài bên ngoài repository. Chỉ chọn các trường `IDGV`, `Fullname`, `Image`, `SumClass` nếu đề yêu cầu file chỉ gồm bốn trường nghiệp vụ.

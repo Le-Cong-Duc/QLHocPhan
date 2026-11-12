@@ -1,8 +1,8 @@
 {
-  "name": "fullstack-product-management",
+  "name": "course-management",
   "version": "1.0.0",
   "private": true,
-  "description": "Dự án thi giữa kì Đa nền tảng: Quản lý sản phẩm (React Native Web/Mobile + MongoDB)",
+  "description": "Ứng dụng quản lý học phần đa nền tảng với React Native, Express và MongoDB",
   "scripts": {
     "start": "npm --prefix frontend start",
     "web": "npm --prefix frontend run web",

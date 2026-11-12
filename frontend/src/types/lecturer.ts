@@ -1,10 +1,9 @@
-// Kiểu dữ liệu đúng theo yêu cầu đề bài: name, price, soluong, image
-export interface Product {
+export interface Lecturer {
   _id?: string;
-  name: string;
-  price: number;
-  soluong: number;
-  image: string;
+  IDGV: string;
+  Fullname: string;
+  Image: string;
+  SumClass: number;
 }
 
 export interface ApiResponse<T> {

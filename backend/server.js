@@ -1,67 +1,84 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
-const Product = require('./models/Product');
+const Lecturer = require('./models/Lecturer');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/product_db';
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/QLHocPhan';
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
-// Middleware
+if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
+  console.error('Vui lòng cấu hình ADMIN_USERNAME và ADMIN_PASSWORD');
+  process.exit(1);
+}
+
 app.use(cors());
-app.use(express.json({ limit: '20mb' })); // Cho phép chuỗi base64 hình ảnh lớn
+app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
-// Kết nối MongoDB
-mongoose
-  .connect(MONGO_URI)
-  .then(async () => {
-    console.log(`[MongoDB] Kết nối thành công tới: ${MONGO_URI}`);
-    // Kiểm tra và khởi tạo dữ liệu mẫu nếu collection còn rỗng
-    try {
-      const count = await Product.countDocuments();
-      if (count === 0) {
-        const seedPath = path.join(__dirname, 'database', 'product_db.product.json');
-        if (fs.existsSync(seedPath)) {
-          const raw = fs.readFileSync(seedPath, 'utf-8');
-          const sampleData = JSON.parse(raw);
-          await Product.insertMany(sampleData);
-          console.log(`[MongoDB] Đã khởi tạo ${sampleData.length} sản phẩm mẫu vào collection 'product'`);
-        }
-      }
-    } catch (err) {
-      console.warn('[MongoDB] Không thể nạp dữ liệu mẫu ban đầu:', err.message);
+function parseLecturerPayload(body, partial = false) {
+  const data = {};
+  const fields = ['IDGV', 'Fullname', 'Image'];
+
+  for (const field of fields) {
+    if (partial && body[field] === undefined) continue;
+    if (typeof body[field] !== 'string' || !body[field].trim()) {
+      return { error: `${field} là trường bắt buộc và phải là chuỗi` };
     }
-  })
-  .catch((err) => {
-    console.error('[MongoDB] Lỗi kết nối:', err.message);
+    data[field] = body[field].trim();
+  }
+
+  if (!partial || body.SumClass !== undefined) {
+    const sumClass = Number(body.SumClass);
+    if (body.SumClass === '' || !Number.isInteger(sumClass) || sumClass < 0) {
+      return { error: 'SumClass phải là số nguyên >= 0' };
+    }
+    data.SumClass = sumClass;
+  }
+
+  if (partial && Object.keys(data).length === 0) {
+    return { error: 'Vui lòng cung cấp ít nhất một trường để cập nhật' };
+  }
+
+  return { data };
+}
+
+function handleDatabaseError(res, error, action) {
+  if (error.code === 11000) {
+    return res.status(409).json({
+      success: false,
+      message: 'IDGV đã tồn tại'
+    });
+  }
+
+  return res.status(500).json({
+    success: false,
+    message: action,
+    error: error.message
   });
+}
 
-// ------------------- API ROUTES -------------------
-
-// 1. Health check
 app.get('/', (req, res) => {
   res.json({
     status: 'success',
-    message: 'Backend API Quản lý sản phẩm đang hoạt động',
+    message: 'Backend API Quản lý học phần đang hoạt động',
+    database: 'QLHocPhan',
+    collection: 'GiangVien',
     endpoints: {
       auth: 'POST /api/auth/login',
-      getProducts: 'GET /api/products',
-      getProductById: 'GET /api/products/:id',
-      createProduct: 'POST /api/products',
-      updateProduct: 'PUT /api/products/:id',
-      deleteProduct: 'DELETE /api/products/:id',
-      seedData: 'POST /api/products/seed'
+      getLecturers: 'GET /api/lecturers',
+      getLecturerById: 'GET /api/lecturers/:IDGV',
+      createLecturer: 'POST /api/lecturers',
+      updateLecturer: 'PUT /api/lecturers/:IDGV',
+      deleteLecturer: 'DELETE /api/lecturers/:IDGV'
     }
   });
 });
 
-// 2. Đăng nhập Admin (Yêu cầu 2: 1.5 điểm)
 app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body;
 
@@ -72,16 +89,15 @@ app.post('/api/auth/login', (req, res) => {
     });
   }
 
-  // Xác thực tài khoản admin đơn giản
   if (
-    (username.trim() === ADMIN_USERNAME && password.trim() === ADMIN_PASSWORD) ||
-    (username.trim() === 'admin' && password.trim() === '123456')
+    username.trim() === ADMIN_USERNAME &&
+    password === ADMIN_PASSWORD
   ) {
     return res.json({
       success: true,
       message: 'Đăng nhập thành công',
       user: {
-        username: 'admin',
+        username: ADMIN_USERNAME,
         role: 'admin'
       }
     });
@@ -89,207 +105,124 @@ app.post('/api/auth/login', (req, res) => {
 
   return res.status(401).json({
     success: false,
-    message: 'Tài khoản hoặc mật khẩu không chính xác (Mặc định: admin / admin)'
+    message: 'Tài khoản hoặc mật khẩu không chính xác'
   });
 });
 
-// 3. Lấy danh sách sản phẩm (có tìm kiếm theo tên)
-app.get('/api/products', async (req, res) => {
+app.get('/api/lecturers', async (req, res) => {
   try {
-    const { search } = req.query;
-    let query = {};
+    const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+    const query = search
+      ? {
+          $or: [
+            { IDGV: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } },
+            { Fullname: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } }
+          ]
+        }
+      : {};
 
-    if (search && search.trim() !== '') {
-      query.name = { $regex: search.trim(), $options: 'i' };
-    }
-
-    const products = await Product.find(query).sort({ _id: -1 });
+    const lecturers = await Lecturer.find(query).sort({ _id: -1 });
     res.json({
       success: true,
-      total: products.length,
-      data: products
+      total: lecturers.length,
+      data: lecturers
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi lấy danh sách sản phẩm',
-      error: error.message
-    });
+    handleDatabaseError(res, error, 'Lỗi khi lấy danh sách giảng viên');
   }
 });
 
-// 4. Lấy chi tiết 1 sản phẩm theo ID
-app.get('/api/products/:id', async (req, res) => {
+app.get('/api/lecturers/:IDGV', async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
-    if (!product) {
+    const lecturer = await Lecturer.findOne({ IDGV: req.params.IDGV });
+    if (!lecturer) {
       return res.status(404).json({
         success: false,
-        message: 'Không tìm thấy sản phẩm'
+        message: 'Không tìm thấy giảng viên'
       });
     }
-    res.json({
-      success: true,
-      data: product
-    });
+    res.json({ success: true, data: lecturer });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'ID sản phẩm không hợp lệ hoặc lỗi máy chủ',
-      error: error.message
-    });
+    handleDatabaseError(res, error, 'Lỗi khi lấy thông tin giảng viên');
   }
 });
 
-// 5. Thêm sản phẩm mới (chỉ nhận: name, price, soluong, image)
-app.post('/api/products', async (req, res) => {
+app.post('/api/lecturers', async (req, res) => {
+  const { data, error: validationError } = parseLecturerPayload(req.body);
+  if (validationError) {
+    return res.status(400).json({ success: false, message: validationError });
+  }
+
   try {
-    const { name, price, soluong, image } = req.body;
-
-    // Validate dữ liệu đầu vào
-    if (!name || price === undefined || soluong === undefined || !image) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng điền đầy đủ các trường: name, price, soluong, image'
-      });
-    }
-
-    const numPrice = Number(price);
-    const numSoluong = Number(soluong);
-
-    if (isNaN(numPrice) || numPrice < 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Giá sản phẩm phải là số hợp lệ >= 0'
-      });
-    }
-
-    if (isNaN(numSoluong) || numSoluong < 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Số lượng sản phẩm phải là số hợp lệ >= 0'
-      });
-    }
-
-    const newProduct = new Product({
-      name: name.trim(),
-      price: numPrice,
-      soluong: numSoluong,
-      image: image.trim()
-    });
-
-    const savedProduct = await newProduct.save();
-
+    const lecturer = await Lecturer.create(data);
     res.status(201).json({
       success: true,
-      message: 'Thêm sản phẩm thành công',
-      data: savedProduct
+      message: 'Thêm giảng viên thành công',
+      data: lecturer
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi thêm sản phẩm',
-      error: error.message
-    });
+    handleDatabaseError(res, error, 'Lỗi khi thêm giảng viên');
   }
 });
 
-// 6. Cập nhật / sửa sản phẩm
-app.put('/api/products/:id', async (req, res) => {
+app.put('/api/lecturers/:IDGV', async (req, res) => {
+  const { data, error: validationError } = parseLecturerPayload(req.body, true);
+  if (validationError) {
+    return res.status(400).json({ success: false, message: validationError });
+  }
+
   try {
-    const { name, price, soluong, image } = req.body;
-
-    const updateData = {};
-    if (name !== undefined) updateData.name = name.trim();
-    if (price !== undefined) {
-      const p = Number(price);
-      if (isNaN(p) || p < 0) return res.status(400).json({ success: false, message: 'Giá không hợp lệ' });
-      updateData.price = p;
-    }
-    if (soluong !== undefined) {
-      const sl = Number(soluong);
-      if (isNaN(sl) || sl < 0) return res.status(400).json({ success: false, message: 'Số lượng không hợp lệ' });
-      updateData.soluong = sl;
-    }
-    if (image !== undefined) updateData.image = image.trim();
-
-    const updatedProduct = await Product.findByIdAndUpdate(
-      req.params.id,
-      updateData,
+    const lecturer = await Lecturer.findOneAndUpdate(
+      { IDGV: req.params.IDGV },
+      data,
       { new: true, runValidators: true }
     );
-
-    if (!updatedProduct) {
+    if (!lecturer) {
       return res.status(404).json({
         success: false,
-        message: 'Không tìm thấy sản phẩm để cập nhật'
+        message: 'Không tìm thấy giảng viên để cập nhật'
       });
     }
-
     res.json({
       success: true,
-      message: 'Cập nhật sản phẩm thành công',
-      data: updatedProduct
+      message: 'Cập nhật giảng viên thành công',
+      data: lecturer
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi sửa sản phẩm',
-      error: error.message
-    });
+    handleDatabaseError(res, error, 'Lỗi khi cập nhật giảng viên');
   }
 });
 
-// 7. Xóa sản phẩm
-app.delete('/api/products/:id', async (req, res) => {
+app.delete('/api/lecturers/:IDGV', async (req, res) => {
   try {
-    const deletedProduct = await Product.findByIdAndDelete(req.params.id);
-    if (!deletedProduct) {
+    const lecturer = await Lecturer.findOneAndDelete({ IDGV: req.params.IDGV });
+    if (!lecturer) {
       return res.status(404).json({
         success: false,
-        message: 'Không tìm thấy sản phẩm để xóa'
+        message: 'Không tìm thấy giảng viên để xóa'
       });
     }
-
     res.json({
       success: true,
-      message: 'Xóa sản phẩm thành công',
-      data: deletedProduct
+      message: 'Xóa giảng viên thành công',
+      data: lecturer
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi xóa sản phẩm',
-      error: error.message
-    });
+    handleDatabaseError(res, error, 'Lỗi khi xóa giảng viên');
   }
 });
 
-// 8. Reset / Seed lại dữ liệu mẫu
-app.post('/api/products/seed', async (req, res) => {
+async function startServer() {
   try {
-    const seedPath = path.join(__dirname, 'database', 'product_db.product.json');
-    const raw = fs.readFileSync(seedPath, 'utf-8');
-    const sampleData = JSON.parse(raw);
-
-    await Product.deleteMany({});
-    const inserted = await Product.insertMany(sampleData);
-
-    res.json({
-      success: true,
-      message: `Đã seed thành công ${inserted.length} sản phẩm`,
-      data: inserted
+    await mongoose.connect(MONGO_URI);
+    console.log(`[MongoDB] Kết nối thành công tới: ${MONGO_URI}`);
+    app.listen(PORT, () => {
+      console.log(`[Backend Server] Đang chạy tại http://localhost:${PORT}`);
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi nạp dữ liệu mẫu',
-      error: error.message
-    });
+    console.error('[MongoDB] Không thể kết nối, backend chưa khởi chạy:', error.message);
+    process.exitCode = 1;
   }
-});
+}
 
-// Khởi chạy server
-app.listen(PORT, () => {
-  console.log(`[Backend Server] Đang chạy tại http://localhost:${PORT}`);
-});
+startServer();
